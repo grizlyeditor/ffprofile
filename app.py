@@ -1,59 +1,55 @@
 from flask import Flask, request, send_file
 from PIL import Image, ImageDraw, ImageFont
 import io
-import os
 
 app = Flask(__name__)
 
+# ✅ Template inside assets folder
 TEMPLATE_PATH = "assets/template.png"
-FONT_PATH = "fonts/Montserrat-Regular.ttf"  # you can change font
-if not os.path.exists(FONT_PATH):
-    FONT_PATH = None  # use default font if not found
+
+def fit_text(draw, text, font_path, max_width, max_height, start_size=60):
+    font_size = start_size
+    font = ImageFont.truetype(font_path, font_size)
+    w, h = draw.textsize(text, font=font)
+    while (w > max_width or h > max_height) and font_size > 10:
+        font_size -= 2
+        font = ImageFont.truetype(font_path, font_size)
+        w, h = draw.textsize(text, font=font)
+    return font
 
 @app.route("/api/card")
-def generate_card():
-    # Get parameters
-    name = request.args.get("name", "K BABACHOP")
-    uid = request.args.get("uid", "8181818188")
-    lvl = request.args.get("lvl", "84")
-    guild = request.args.get("guild", "GUILD. MORAL")
+def card():
+    name = request.args.get("name", "PLAYER")
+    uid = request.args.get("uid", "0000000000")
+    lvl = request.args.get("lvl", "00")
+    guild = request.args.get("guild", "NONE")
 
-    # Load template
     base = Image.open(TEMPLATE_PATH).convert("RGBA")
-
-    # Draw text
     draw = ImageDraw.Draw(base)
+    width, height = base.size
 
-    # Setup fonts
-    try:
-        font_big = ImageFont.truetype(FONT_PATH, 48)
-        font_mid = ImageFont.truetype(FONT_PATH, 28)
-        font_small = ImageFont.truetype(FONT_PATH, 22)
-    except:
-        font_big = font_mid = font_small = ImageFont.load_default()
+    FONT_PATH = "arial.ttf"  # ya apna font path
 
-    # Coordinates (you can fine-tune later)
-    name_pos = (320, 60)
-    uid_pos = (320, 120)
-    guild_pos = (320, 210)
-    lvl_pos = (850, 210)
+    # Adjust these percentages according to your template
+    name_box  = (width * 0.33, height * 0.20, width * 0.60, height * 0.35)
+    uid_box   = (width * 0.33, height * 0.35, width * 0.60, height * 0.50)
+    guild_box = (width * 0.33, height * 0.70, width * 0.70, height * 0.85)
+    lvl_box   = (width * 0.85, height * 0.70, width * 0.98, height * 0.85)
 
-    # Name
-    draw.text(name_pos, name.upper(), font=font_big, fill=(255, 255, 255, 255))
-    # UID
-    draw.text(uid_pos, f"UID: {uid}", font=font_mid, fill=(220, 220, 220, 255))
-    # Guild
-    draw.text(guild_pos, guild.upper(), font=font_small, fill=(255, 255, 255, 255))
-    # Level
-    draw.text(lvl_pos, f"Lv. {lvl}", font=font_small, fill=(255, 255, 255, 255))
+    name_font  = fit_text(draw, name, FONT_PATH, name_box[2]-name_box[0], name_box[3]-name_box[1])
+    uid_font   = fit_text(draw, f"UID {uid}", FONT_PATH, uid_box[2]-uid_box[0], uid_box[3]-uid_box[1], start_size=40)
+    guild_font = fit_text(draw, guild, FONT_PATH, guild_box[2]-guild_box[0], guild_box[3]-guild_box[1], start_size=40)
+    lvl_font   = fit_text(draw, f"Lv. {lvl}", FONT_PATH, lvl_box[2]-lvl_box[0], lvl_box[3]-lvl_box[1], start_size=40)
 
-    # Save to bytes
-    img_bytes = io.BytesIO()
-    base.save(img_bytes, format="PNG")
-    img_bytes.seek(0)
+    draw.text((name_box[0], name_box[1]), name, font=name_font, fill=(255,255,255,255))
+    draw.text((uid_box[0], uid_box[1]), f"UID {uid}", font=uid_font, fill=(200,200,200,255))
+    draw.text((guild_box[0], guild_box[1]), guild, font=guild_font, fill=(255,255,255,255))
+    draw.text((lvl_box[0], lvl_box[1]), f"Lv. {lvl}", font=lvl_font, fill=(255,255,255,255))
 
-    return send_file(img_bytes, mimetype="image/png")
-
+    img_io = io.BytesIO()
+    base.save(img_io, "PNG")
+    img_io.seek(0)
+    return send_file(img_io, mimetype="image/png")
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    app.run(debug=True)
